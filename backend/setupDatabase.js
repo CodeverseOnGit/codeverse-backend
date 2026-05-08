@@ -7,6 +7,7 @@ const setupDatabase = async () => {
   
   try {
     console.log('🔧 Setting up database...\n');
+    console.log("DB URL:", process.env.DATABASE_URL);
 
     // Drop existing tables (in correct order due to foreign keys)
     await client.query('DROP TABLE IF EXISTS quiz_results CASCADE');
