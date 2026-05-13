@@ -8,10 +8,22 @@ function App() {
   const [selectedTopic, setSelectedTopic] = useState(null);
 
   useEffect(() => {
-    fetch("https://codeverse-backend-05ko.onrender.com/api/topics")
-      .then(res => res.json())
-      .then(data => setTopics(data));
-  }, []);
+  fetch("http://localhost:5000/api/topics")
+    .then(res => res.json())
+    .then(data => {
+      console.log("TOPICS API RESPONSE:", data);
+
+      if (Array.isArray(data)) {
+        setTopics(data);
+      } else {
+        setTopics([]); // fallback prevents crash
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      setTopics([]);
+    });
+}, []);
 
   // 👉 MAIN PAGE (TOPIC SELECTION)
   if (!selectedTopic) {
