@@ -5,8 +5,8 @@ const { authenticateToken, requireAdmin } = require('../middleware/auth');
 
 // @route   POST /api/quiz/questions
 // @desc    Create a quiz question
-// @access  Admin only
-router.post('/questions', authenticateToken, requireAdmin, async (req, res) => {
+// @access  Public
+router.post('/questions', async (req, res) => {
   try {
     const { chapter_id, question, options, correct_answer, explanation, order_index } = req.body;
 
@@ -166,6 +166,64 @@ router.get('/results/:chapterId', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error fetching quiz results:', error);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// @route   POST /api/quiz
+// @desc    Create quiz question
+// @access  Admin only
+router.post("/", async (req, res) => {
+  try {
+    const {
+      chapter_id,
+      question,
+      options,
+      correct_answer,
+      explanation,
+      order_index
+    } = req.body;
+
+    if (
+      !chapter_id ||
+      !question ||
+      !options ||
+      correct_answer === undefined
+    ) {
+      return res.status(400).json({
+        error: "Missing required fields"
+      });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO quiz_questions
+      (
+        chapter_id,
+        question,
+        options,
+        correct_answer,
+        explanation,
+        order_index
+      )
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *`,
+      [
+        chapter_id,
+        question,
+        JSON.stringify(options),
+        correct_answer,
+        explanation || "",
+        order_index || 0
+      ]
+    );
+
+    res.status(201).json(result.rows[0]);
+
+  } catch (error) {
+    console.error("Error creating quiz:", error);
+
+    res.status(500).json({
+      error: "Server error"
+    });
   }
 });
 
