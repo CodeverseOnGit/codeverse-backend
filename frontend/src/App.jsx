@@ -8,7 +8,7 @@ function App() {
   const [selectedTopic, setSelectedTopic] = useState(null);
 
   useEffect(() => {
-    fetch("http://localhost:5000/api/topics")
+    fetch("https://codeverse-backend-05ko.onrender.com/api/topics")
       .then(res => res.json())
       .then(data => setTopics(data));
   }, []);
@@ -95,7 +95,7 @@ function Sidebar({ topic, setSelectedChapter, setSelectedModuleId, setShowCreate
   const [modules, setModules] = useState([]);
 
   useEffect(() => {
-    fetch(`http://localhost:5000/api/topics/${topic.id}/modules`)
+    fetch(`https://codeverse-backend-05ko.onrender.com/api/topics/${topic.id}/modules`)
       .then(res => res.json())
       .then(data => setModules(data));
   }, [topic]);
@@ -130,7 +130,7 @@ function ModuleItem({
   const loadChapters = async () => {
     try {
       const res = await fetch(
-        `http://localhost:5000/api/chapters/by-module/${module.id}`
+        `https://codeverse-backend-05ko.onrender.com/api/chapters/by-module/${module.id}`
       );
 
       const data = await res.json();
@@ -152,7 +152,7 @@ function ModuleItem({
   const loadFullChapter = async (id) => {
     try {
       const res = await fetch(
-        `http://localhost:5000/api/chapters/${id}`
+        `https://codeverse-backend-05ko.onrender.com/api/chapters/${id}`
       );
 
       const data = await res.json();
@@ -217,7 +217,7 @@ function ChapterView({ chapter }) {
 
   const reloadChapter = async () => {
     try {
-      const res = await fetch(`http://localhost:5000/api/chapters/${chapter.id}`);
+      const res = await fetch(`https://codeverse-backend-05ko.onrender.com/api/chapters/${chapter.id}`);
       const data = await res.json();
       setCurrentChapter(data);
     } catch (err) {
@@ -310,7 +310,7 @@ function CreateChapterModal({ onClose, moduleId, onChapterCreated }) {
 
   const createChapter = async () => {
     try {
-      const response = await fetch("http://localhost:5000/api/chapters", {
+      const response = await fetch("https://codeverse-backend-05ko.onrender.com/api/chapters", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -394,7 +394,7 @@ function CreateQuizModal({ chapterId, onClose, onQuizCreated }) {
   const createQuiz = async () => {
     const token = localStorage.getItem('token');
     
-    await fetch("http://localhost:5000/api/quiz/questions", {
+    await fetch("https://codeverse-backend-05ko.onrender.com/api/quiz/questions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
