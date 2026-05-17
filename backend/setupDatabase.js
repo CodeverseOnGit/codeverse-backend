@@ -1,16 +1,17 @@
+// Force IPv4 DNS resolution FIRST - before any other requires
+const dns = require('dns');
+dns.setDefaultResultOrder('ipv4first');
+
 const pool = require('./config/database');
 const bcrypt = require('bcryptjs');
 require('dotenv').config();
-
-const dns = require('dns');
-dns.setDefaultResultOrder('ipv4first');
 
 const setupDatabase = async () => {
   const client = await pool.connect();
   
   try {
     console.log('🔧 Setting up database...\n');
-    console.log("DB URL:", process.env.DATABASE_URL);
+    console.log("DB URL:", process.env.DATABASE_URL?.replace(/:[^:@]*@/, ':****@')); // Hide password in logs
 
     // Drop existing tables (in correct order due to foreign keys)
     await client.query('DROP TABLE IF EXISTS quiz_results CASCADE');
