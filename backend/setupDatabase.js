@@ -1,6 +1,8 @@
 const pool = require('./config/database');
 const bcrypt = require('bcryptjs');
 require('dotenv').config();
+
+const dns = require('dns');
 dns.setDefaultResultOrder('ipv4first');
 
 const setupDatabase = async () => {
