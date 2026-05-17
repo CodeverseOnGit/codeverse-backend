@@ -2,36 +2,57 @@ import { useEffect, useState, useMemo } from "react";
 import SimpleMDE from "react-simplemde-editor";
 import "easymde/dist/easymde.min.css";
 import ReactMarkdown from "react-markdown";
+import CodeBlock from "./components/CodeBlock";
 
 function App() {
   const [topics, setTopics] = useState([]);
   const [selectedTopic, setSelectedTopic] = useState(null);
+  const [showCreateTopic, setShowCreateTopic] = useState(false);
 
-  useEffect(() => {
-  fetch("http://localhost:5000/api/topics")
-    .then(res => res.json())
-    .then(data => {
+  const reloadTopics = async () => {
+    try {
+      const res = await fetch("http://localhost:5000/api/topics");
+      const data = await res.json();
       console.log("TOPICS API RESPONSE:", data);
-
       if (Array.isArray(data)) {
         setTopics(data);
       } else {
-        setTopics([]); // fallback prevents crash
+        setTopics([]);
       }
-    })
-    .catch(err => {
+    } catch (err) {
       console.error(err);
       setTopics([]);
-    });
-}, []);
+    }
+  };
+
+  useEffect(() => {
+    reloadTopics();
+  }, []);
 
   // 👉 MAIN PAGE (TOPIC SELECTION)
   if (!selectedTopic) {
     return (
       <div style={{ padding: 40 }}>
-        <h1>📚 Select a Topic</h1>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 30 }}>
+          <h1>📚 Select a Topic</h1>
+          <button
+            onClick={() => setShowCreateTopic(true)}
+            style={{
+              padding: "10px 20px",
+              background: "#4caf50",
+              color: "white",
+              border: "none",
+              borderRadius: 5,
+              cursor: "pointer",
+              fontSize: "16px",
+              fontWeight: "bold"
+            }}
+          >
+            + Add Topic
+          </button>
+        </div>
 
-        <div style={{ display: "flex", gap: 20 }}>
+        <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
           {topics.map(topic => (
             <div
               key={topic.id}
@@ -40,7 +61,9 @@ function App() {
                 padding: 20,
                 border: "1px solid #ccc",
                 cursor: "pointer",
-                borderRadius: 10
+                borderRadius: 10,
+                flex: "0 1 calc(33.333% - 14px)",
+                minWidth: 250
               }}
             >
               <h3>{topic.title}</h3>
@@ -48,6 +71,16 @@ function App() {
             </div>
           ))}
         </div>
+
+        {showCreateTopic && (
+          <CreateTopicModal
+            onClose={() => setShowCreateTopic(false)}
+            onTopicCreated={() => {
+              reloadTopics();
+              setShowCreateTopic(false);
+            }}
+          />
+        )}
       </div>
     );
   }
@@ -105,17 +138,45 @@ function TopicPage({ topic, goBack }) {
 
 function Sidebar({ topic, setSelectedChapter, setSelectedModuleId, setShowCreateChapter, setOnChapterCreated }){
   const [modules, setModules] = useState([]);
+  const [showCreateModule, setShowCreateModule] = useState(false);
+
+  const loadModules = async () => {
+    try {
+      const res = await fetch(`https://codeverse-backend-05ko.onrender.com/api/topics/${topic.id}/modules`);
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      const data = await res.json();
+      setModules(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Error loading modules:", err);
+      setModules([]);
+    }
+  };
 
   useEffect(() => {
-    fetch(`https://codeverse-backend-05ko.onrender.com/api/topics/${topic.id}/modules`)
-      .then(res => res.json())
-      .then(data => setModules(data));
+    loadModules();
   }, [topic]);
 
   return (
-    <div style={{ width: 300, borderRight: "1px solid #ddd" }}>
-      <h3>{topic.title}</h3>
+    <div style={{ width: 300, borderRight: "1px solid #ddd", padding: 10 }}>
+      <h3 style={{ marginBottom: 10 }}>{topic.title}</h3>
+      <button
+        onClick={() => setShowCreateModule(true)}
+        style={{
+          width: "100%",
+          padding: "8px 12px",
+          background: "#2196f3",
+          color: "white",
+          border: "none",
+          borderRadius: 4,
+          cursor: "pointer",
+          marginBottom: 15,
+          fontSize: "14px"
+        }}
+      >
+        + Add Module
+      </button>
 
+      {modules.length === 0 && <p style={{ color: "#999" }}>No modules yet</p>}
       {modules.map(module => (
         <ModuleItem
             key={module.id}
@@ -126,6 +187,17 @@ function Sidebar({ topic, setSelectedChapter, setSelectedModuleId, setShowCreate
   setOnChapterCreated={setOnChapterCreated}
         />
       ))}
+
+      {showCreateModule && (
+        <CreateModuleModal
+          topicId={topic.id}
+          onClose={() => setShowCreateModule(false)}
+          onModuleCreated={() => {
+            loadModules();
+            setShowCreateModule(false);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -266,6 +338,23 @@ function ChapterView({ chapter }) {
   );
 }
 
+// Helper component to render content (text or code)
+function ContentRenderer({ content }) {
+  // Check if content is an object with code
+  if (typeof content === 'object' && content?.type === 'code') {
+    return (
+      <div style={{ marginBottom: 10 }}>
+        <CodeBlock className={`language-${content.language || 'javascript'}`}>
+          {content.content}
+        </CodeBlock>
+      </div>
+    );
+  }
+  
+  // If content is a plain string, render as text
+  return <p>{content}</p>;
+}
+
 function Quiz({ chapter }) {
   const questions = chapter?.quiz_questions || [];
 
@@ -288,11 +377,11 @@ function Quiz({ chapter }) {
       <h2>Quiz</h2>
 
       {questions.map((q, i) => (
-        <div key={q.id}>
-          <p>{q.question}</p>
+        <div key={q.id} style={{ marginBottom: 20, padding: 15, border: '1px solid #ddd', borderRadius: 8 }}>
+          <ContentRenderer content={q.question} />
 
           {q.options.map((opt, idx) => (
-            <div key={idx}>
+            <div key={idx} style={{ marginBottom: 10, paddingLeft: 20 }}>
               <input
                 type="radio"
                 name={i}
@@ -300,7 +389,17 @@ function Quiz({ chapter }) {
                   setAnswers({ ...answers, [i]: idx })
                 }
               />
-              {opt}
+              <span style={{ marginLeft: 8 }}>
+                {typeof opt === 'object' && opt?.type === 'code' ? (
+                  <div style={{ display: 'inline-block', marginLeft: 10 }}>
+                    <CodeBlock className={`language-${opt.language || 'javascript'}`}>
+                      {opt.content}
+                    </CodeBlock>
+                  </div>
+                ) : (
+                  opt
+                )}
+              </span>
             </div>
           ))}
         </div>
@@ -395,17 +494,25 @@ function CreateChapterModal({ onClose, moduleId, onChapterCreated }) {
 
 function CreateQuizModal({ chapterId, onClose, onQuizCreated }) {
   const [question, setQuestion] = useState("");
+  const [questionType, setQuestionType] = useState("text"); // "text" or "code"
+  const [questionLanguage, setQuestionLanguage] = useState("javascript");
+  
   const [options, setOptions] = useState([
-    "",
-    "",
-    "",
-    ""
+    { type: "text", content: "" },
+    { type: "text", content: "" },
+    { type: "text", content: "" },
+    { type: "text", content: "" }
   ]);
   const [correctAnswer, setCorrectAnswer] = useState(0);
 
   const createQuiz = async () => {
     const token = localStorage.getItem('token');
     
+    // Format question based on type
+    const formattedQuestion = questionType === "code"
+      ? { type: "code", content: question, language: questionLanguage }
+      : question;
+
     await fetch("https://codeverse-backend-05ko.onrender.com/api/quiz/questions", {
       method: "POST",
       headers: {
@@ -414,13 +521,12 @@ function CreateQuizModal({ chapterId, onClose, onQuizCreated }) {
       },
       body: JSON.stringify({
         chapter_id: chapterId,
-        question,
+        question: formattedQuestion,
         options,
         correct_answer: correctAnswer
       })
     });
 
-    // Reload chapter data after creating quiz
     if (onQuizCreated) {
       await onQuizCreated();
     }
@@ -428,56 +534,471 @@ function CreateQuizModal({ chapterId, onClose, onQuizCreated }) {
     onClose();
   };
 
+  const updateOption = (index, type, content, language = "javascript") => {
+    const newOptions = [...options];
+    newOptions[index] = { type, content, language };
+    setOptions(newOptions);
+  };
+
+  const toggleOptionType = (index) => {
+    const newOptions = [...options];
+    const currentType = newOptions[index].type;
+    newOptions[index].type = currentType === "text" ? "code" : "text";
+    newOptions[index].language = currentType === "text" ? "javascript" : "javascript";
+    setOptions(newOptions);
+  };
+
+  const programmingLanguages = [
+    "javascript",
+    "python",
+    "java",
+    "cpp",
+    "csharp",
+    "ruby",
+    "go",
+    "typescript"
+  ];
+
   return (
     <div style={{
       position: "fixed",
       inset: 0,
-      background: "rgba(0,0,0,0.5)"
+      background: "rgba(0,0,0,0.5)",
+      overflowY: "auto"
     }}>
       <div style={{
         background: "white",
-        width: 500,
-        margin: "10% auto",
-        padding: 20
+        width: 600,
+        margin: "5% auto",
+        padding: 20,
+        borderRadius: 10
       }}>
 
         <h2>Create Quiz Question</h2>
 
-        <input
-          placeholder="Question"
-          onChange={e => setQuestion(e.target.value)}
-        />
+        {/* Question Section */}
+        <div style={{ marginBottom: 20, padding: 15, background: "#f9f9f9", borderRadius: 8 }}>
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ fontWeight: "bold" }}>Question Type:</label>
+            <select
+              value={questionType}
+              onChange={(e) => setQuestionType(e.target.value)}
+              style={{ marginLeft: 10, padding: 5 }}
+            >
+              <option value="text">Text</option>
+              <option value="code">Code</option>
+            </select>
+          </div>
 
-        {options.map((opt, i) => (
-          <div key={i}>
-            <input
-              placeholder={`Option ${i + 1}`}
-              value={opt}
-              onChange={e => {
-                const newOptions = [...options];
-                newOptions[i] = e.target.value;
-                setOptions(newOptions);
+          {questionType === "text" ? (
+            <textarea
+              placeholder="Enter question text"
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              style={{
+                width: "100%",
+                padding: 10,
+                minHeight: 80,
+                fontFamily: "Arial, sans-serif",
+                borderRadius: 4,
+                border: "1px solid #ddd"
               }}
             />
+          ) : (
+            <>
+              <div style={{ marginBottom: 10 }}>
+                <label style={{ marginRight: 10 }}>Language:</label>
+                <select
+                  value={questionLanguage}
+                  onChange={(e) => setQuestionLanguage(e.target.value)}
+                  style={{ padding: 5 }}
+                >
+                  {programmingLanguages.map(lang => (
+                    <option key={lang} value={lang}>{lang}</option>
+                  ))}
+                </select>
+              </div>
+              <textarea
+                placeholder="Enter code"
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: 10,
+                  minHeight: 120,
+                  fontFamily: "monospace",
+                  fontSize: "12px",
+                  borderRadius: 4,
+                  border: "1px solid #ddd"
+                }}
+              />
+            </>
+          )}
+        </div>
 
-            <input
-              type="radio"
-              checked={correctAnswer === i}
-              onChange={() => setCorrectAnswer(i)}
-            />
+        {/* Options Section */}
+        <h3>Options</h3>
+        {options.map((opt, i) => (
+          <div
+            key={i}
+            style={{
+              marginBottom: 15,
+              padding: 12,
+              background: correctAnswer === i ? "#e3f2fd" : "#fafafa",
+              border: correctAnswer === i ? "2px solid #2196f3" : "1px solid #ddd",
+              borderRadius: 8
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
+              <input
+                type="radio"
+                checked={correctAnswer === i}
+                onChange={() => setCorrectAnswer(i)}
+                style={{ marginRight: 10, cursor: "pointer" }}
+              />
+              <label style={{ marginRight: 10, fontWeight: "bold" }}>Correct</label>
+              
+              <button
+                onClick={() => toggleOptionType(i)}
+                style={{
+                  marginLeft: "auto",
+                  padding: "5px 10px",
+                  background: opt.type === "code" ? "#4caf50" : "#9e9e9e",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 4,
+                  cursor: "pointer"
+                }}
+              >
+                {opt.type === "text" ? "Switch to Code" : "Switch to Text"}
+              </button>
+            </div>
 
-            Correct
+            {opt.type === "text" ? (
+              <textarea
+                placeholder={`Option ${i + 1}`}
+                value={opt.content}
+                onChange={(e) => updateOption(i, "text", e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: 8,
+                  minHeight: 50,
+                  fontFamily: "Arial, sans-serif",
+                  borderRadius: 4,
+                  border: "1px solid #ddd"
+                }}
+              />
+            ) : (
+              <>
+                <div style={{ marginBottom: 8 }}>
+                  <label style={{ marginRight: 10 }}>Language:</label>
+                  <select
+                    value={opt.language || "javascript"}
+                    onChange={(e) => updateOption(i, "code", opt.content, e.target.value)}
+                    style={{ padding: 5 }}
+                  >
+                    {programmingLanguages.map(lang => (
+                      <option key={lang} value={lang}>{lang}</option>
+                    ))}
+                  </select>
+                </div>
+                <textarea
+                  placeholder={`Option ${i + 1} code`}
+                  value={opt.content}
+                  onChange={(e) => updateOption(i, "code", e.target.value, opt.language)}
+                  style={{
+                    width: "100%",
+                    padding: 8,
+                    minHeight: 80,
+                    fontFamily: "monospace",
+                    fontSize: "12px",
+                    borderRadius: 4,
+                    border: "1px solid #ddd"
+                  }}
+                />
+              </>
+            )}
           </div>
         ))}
 
-        <button onClick={createQuiz}>
-          Save Quiz
-        </button>
+        <div style={{ marginTop: 20, display: "flex", gap: 10 }}>
+          <button
+            onClick={createQuiz}
+            style={{
+              padding: "10px 20px",
+              background: "#4caf50",
+              color: "white",
+              border: "none",
+              borderRadius: 4,
+              cursor: "pointer",
+              fontSize: "14px"
+            }}
+          >
+            Save Quiz
+          </button>
 
-        <button onClick={onClose}>
-          Cancel
-        </button>
+          <button
+            onClick={onClose}
+            style={{
+              padding: "10px 20px",
+              background: "#f44336",
+              color: "white",
+              border: "none",
+              borderRadius: 4,
+              cursor: "pointer",
+              fontSize: "14px"
+            }}
+          >
+            Cancel
+          </button>
+        </div>
 
+      </div>
+    </div>
+  );
+}
+
+function CreateTopicModal({ onClose, onTopicCreated }) {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+
+  const createTopic = async () => {
+    if (!title.trim()) {
+      alert("Please enter a topic title");
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch("https://codeverse-backend-05ko.onrender.com/api/topics", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          title,
+          description
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error creating topic: ${response.status}`);
+      }
+
+      alert("Topic created successfully!");
+      if (onTopicCreated) {
+        await onTopicCreated();
+      }
+      onClose();
+    } catch (error) {
+      console.error("Error creating topic:", error);
+      alert("Failed to create topic. Check console for details.");
+    }
+  };
+
+  return (
+    <div style={{
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: "rgba(0,0,0,0.5)",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 1000
+    }}>
+      <div style={{
+        background: "white",
+        padding: 30,
+        borderRadius: 10,
+        width: 400,
+        boxShadow: "0 4px 6px rgba(0,0,0,0.1)"
+      }}>
+        <h2>Create New Topic</h2>
+
+        <input
+          placeholder="Topic Title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          style={{
+            width: "100%",
+            padding: 10,
+            marginBottom: 15,
+            border: "1px solid #ddd",
+            borderRadius: 4,
+            fontSize: "14px",
+            boxSizing: "border-box"
+          }}
+        />
+
+        <textarea
+          placeholder="Topic Description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          style={{
+            width: "100%",
+            padding: 10,
+            marginBottom: 15,
+            border: "1px solid #ddd",
+            borderRadius: 4,
+            fontSize: "14px",
+            minHeight: 80,
+            boxSizing: "border-box"
+          }}
+        />
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            onClick={createTopic}
+            style={{
+              flex: 1,
+              padding: "10px 20px",
+              background: "#4caf50",
+              color: "white",
+              border: "none",
+              borderRadius: 4,
+              cursor: "pointer",
+              fontSize: "14px",
+              fontWeight: "bold"
+            }}
+          >
+            Create Topic
+          </button>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1,
+              padding: "10px 20px",
+              background: "#f44336",
+              color: "white",
+              border: "none",
+              borderRadius: 4,
+              cursor: "pointer",
+              fontSize: "14px"
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CreateModuleModal({ topicId, onClose, onModuleCreated }) {
+  const [title, setTitle] = useState("");
+
+  const createModule = async () => {
+    if (!title.trim()) {
+      alert("Please enter a module title");
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch("https://codeverse-backend-05ko.onrender.com/api/modules", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          topic_id: topicId,
+          title
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error creating module: ${response.status}`);
+      }
+
+      alert("Module created successfully!");
+      if (onModuleCreated) {
+        await onModuleCreated();
+      }
+      onClose();
+    } catch (error) {
+      console.error("Error creating module:", error);
+      alert("Failed to create module. Check console for details.");
+    }
+  };
+
+  return (
+    <div style={{
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: "rgba(0,0,0,0.5)",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 1000
+    }}>
+      <div style={{
+        background: "white",
+        padding: 30,
+        borderRadius: 10,
+        width: 400,
+        boxShadow: "0 4px 6px rgba(0,0,0,0.1)"
+      }}>
+        <h2>Create New Module</h2>
+
+        <input
+          placeholder="Module Title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyPress={(e) => {
+            if (e.key === "Enter") createModule();
+          }}
+          style={{
+            width: "100%",
+            padding: 10,
+            marginBottom: 15,
+            border: "1px solid #ddd",
+            borderRadius: 4,
+            fontSize: "14px",
+            boxSizing: "border-box"
+          }}
+        />
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            onClick={createModule}
+            style={{
+              flex: 1,
+              padding: "10px 20px",
+              background: "#2196f3",
+              color: "white",
+              border: "none",
+              borderRadius: 4,
+              cursor: "pointer",
+              fontSize: "14px",
+              fontWeight: "bold"
+            }}
+          >
+            Create Module
+          </button>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1,
+              padding: "10px 20px",
+              background: "#f44336",
+              color: "white",
+              border: "none",
+              borderRadius: 4,
+              cursor: "pointer",
+              fontSize: "14px"
+            }}
+          >
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   );
