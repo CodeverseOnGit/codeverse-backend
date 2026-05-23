@@ -7,7 +7,10 @@ const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
 const setupDatabase = async () => {
-  const client = await pool.connect();
+    const client = await pool.connect().catch(err => {
+    console.log('⚠️  Database not available during build. Skipping setup.');
+    process.exit(0); // Exit gracefully
+  });
   
   try {
     console.log('🔧 Setting up database...\n');

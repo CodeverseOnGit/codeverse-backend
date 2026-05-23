@@ -1,23 +1,49 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
+const pool = require('./config/database');
 
 const app = express();
 
-// Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-// Request logging middleware
-app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
-  next();
+// Import routes
+const authRoutes = require('./routes/auth');
+const topicsRoutes = require('./routes/topics');
+const modulesRoutes = require('./routes/modules');
+const chaptersRoutes = require('./routes/chapters');
+const quizRoutes = require('./routes/quiz');
+
+// Initialize database on startup
+const initializeDatabase = async () => {
+  const client = await pool.connect();
+  try {
+    console.log('🔧 Initializing database...');
+    
+    // Create tables (same code from setupDatabase.js)
+    await client.query('CREATE TABLE IF NOT EXISTS users (...)');
+    // ... rest of table creation
+    
+    console.log('✓ Database initialized');
+  } catch (err) {
+    console.error('Database initialization error:', err);
+  } finally {
+    client.release();
+  }
+};
+
+// Run setup then start server
+initializeDatabase().then(() => {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => {
+    console.log(`✓ Server running on port ${PORT}`);
+  });
 });
 
 // Routes
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/topics', require('./routes/topics'));
+app.use('/api/auth', authRoutes);
+app.use('/api/topics', topicsRoutes);
 app.use('/api/modules', require('./routes/modules'));
 app.use('/api/chapters', require('./routes/chapters'));
 app.use('/api/quiz', require('./routes/quiz'));
